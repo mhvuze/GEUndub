@@ -29,15 +29,15 @@ namespace GEUndub
             Console.WriteLine("=========================");
 
             // Check files and resources
-            if (!File.Exists(bin_qpck)) { Console.WriteLine("ERROR: bin.qpck doesn't exist in this directory."); return; }
+            if (!File.Exists(bin_qpck)) { Console.WriteLine("ERROR: bin.qpck doesn't exist in this directory."); Console.ReadLine(); }
             if (File.Exists(new_qpck)) { File.Delete(new_qpck); }
-            //if (!Directory.Exists(res)) { Console.WriteLine("ERROR: res folder doesn't exist in this directory."); return; }
-            //if (!File.Exists(index_txt)) { Console.WriteLine("ERROR: index.txt doesn't exist in the res folder."); return; }
+            //if (!Directory.Exists(res)) { Console.WriteLine("ERROR: res folder doesn't exist in this directory."); Console.ReadLine(); }
+            //if (!File.Exists(index_txt)) { Console.WriteLine("ERROR: index.txt doesn't exist in the res folder."); Console.ReadLine(); }
 
             // Processing qpck
             using (BinaryReader reader_qpck = new BinaryReader(File.Open(bin_qpck, FileMode.Open)))
             {
-                if (reader_qpck.ReadInt32() != magic_qpck) { Console.WriteLine("ERROR: bin.qpck is not a valid qpck file."); return; }
+                if (reader_qpck.ReadInt32() != magic_qpck) { Console.WriteLine("ERROR: bin.qpck is not a valid qpck file."); Console.ReadLine(); }
                 int count_qpck = reader_qpck.ReadInt32();
 
                 // Copy qpck index to new qpck
@@ -70,44 +70,106 @@ namespace GEUndub
                         {
                             Console.WriteLine("File @ {0} matches filter. Processing now.", offset_qpck_file.ToString("X16"));
                             Stream stream_og_pres = new MemoryStream(buffer_qpck_file);
+
+                            using (BinaryReader reader_pres = new BinaryReader(stream_og_pres))
+                            {
+                                // Get general pres info
+                                reader_pres.BaseStream.Seek(0x10, SeekOrigin.Begin);
+                                int offset_pres_data = reader_pres.ReadInt32();
+                                reader_pres.BaseStream.Seek(8, SeekOrigin.Current);
+                                int count_pres_set = reader_pres.ReadInt32();
+                                long reader_index_root = reader_pres.BaseStream.Position;
+
+                                for (int j = 0; j < count_pres_set; j++)
+                                {
+                                    // Handle differences for pres with count > 1
+                                    if (count_pres_set > 1) { int offset_pres_set_entry = reader_pres.ReadInt32(); reader_pres.BaseStream.Seek(offset_pres_set_entry, SeekOrigin.Begin); }
+
+                                    // Read set info
+                                    reader_pres.BaseStream.Seek(16, SeekOrigin.Current);
+                                    int offset_set_info = reader_pres.ReadInt32();
+                                    int count_set_files = reader_pres.ReadInt32();
+
+                                    for (int k = 0; k < count_set_files; k++)
+                                    {
+                                        // Get individual file info
+                                        reader_pres.BaseStream.Seek(offset_set_info, SeekOrigin.Begin);
+                                        int offset_file = reader_pres.ReadInt32();
+                                        int csize_file = reader_pres.ReadInt32();
+                                        int offset_name = reader_pres.ReadInt32();
+                                        int count_nameparts = reader_pres.ReadInt32();
+                                        reader_pres.BaseStream.Seek(12, SeekOrigin.Current);
+                                        int usize_file = reader_pres.ReadInt32();
+                                        long reader_index_file = reader_pres.BaseStream.Position;
+
+                                        // Get individual file name info
+                                        reader_pres.BaseStream.Seek(offset_name, SeekOrigin.Begin);
+                                        int offset_part_name = reader_pres.ReadInt32();
+                                        int offset_part_Ext = reader_pres.ReadInt32();
+
+                                        // Get individual file name strings
+                                        if (count_nameparts < 2) { Console.WriteLine("ERROR: This file doesn't have 2 or more name parts."); break; }
+                                        reader_pres.BaseStream.Seek(offset_part_name, SeekOrigin.Begin);
+                                        string string_name = readNullterminated(reader_pres);
+                                        reader_pres.BaseStream.Seek(offset_part_Ext, SeekOrigin.Begin);
+                                        string string_ext = readNullterminated(reader_pres);
+
+                                        Console.WriteLine("{0}.{1}", string_name, string_ext);
+
+                                        // Blabla replacement
+
+                                        // Prepare for next loop
+                                        reader_pres.BaseStream.Seek(reader_index_file + (k * 0x20), SeekOrigin.Begin);
+                                    }
+
+                                    // Prepare for next loop
+                                    if (count_pres_set > 1) { reader_pres.BaseStream.Seek(reader_index_root + ((j + 1) * 8), SeekOrigin.Begin); }
+                                }
+                            }
                         }
                     }
 
                     // Write buffer to new qpck
                     writer_qpck.Write(buffer_qpck_file);
 
-                    // End
+                    // Prepare for next loop
                     reader_qpck.BaseStream.Seek(offset_qpck_lastentry, SeekOrigin.Begin);
                 }
-
                 writer_qpck.Close();
             }
-            // End
+            // App Exit
             Console.WriteLine("=========================");
             Console.WriteLine("INFO: Finished patching. Press Enter to exit.");
             Console.ReadLine();
         }
 
-        /* Search byte array for pattern
-        static bool PatternFound(byte[] source, byte[] pattern)
+        // Read null-terminated string
+        private static string readNullterminated(BinaryReader reader)
         {
-            bool found = false;
-            for (int i = 0; i < source.Length; i++)
+            var char_array = new List<byte>();
+            string str = "";
+            if (reader.BaseStream.Position == reader.BaseStream.Length)
             {
-                if (source.Skip(i).Take(pattern.Length).SequenceEqual(pattern))
-                {
-                    found = true;
-                    break;
-                }
+                byte[] char_bytes2 = char_array.ToArray();
+                str = Encoding.UTF8.GetString(char_bytes2);
+                return str;
             }
-            return found;
-        }*/
+            byte b = reader.ReadByte();
+            while ((b != 0x00) && (reader.BaseStream.Position != reader.BaseStream.Length))
+            {
+                char_array.Add(b);
+                b = reader.ReadByte();
+            }
+            byte[] char_bytes = char_array.ToArray();
+            str = Encoding.UTF8.GetString(char_bytes);
+            return str;
+        }
     }
 
-    #region byte-array-searching
-    // from http://stackoverflow.com/a/283648/5343630
-    public static class ArraySearch
+    #region helpers    
+    public static class Helpers
     {
+        // Array pattern search; based on http://stackoverflow.com/a/283648/5343630
         public static bool ArrayContains(this byte[] self, byte[] candidate)
         {
             bool contains = false;
@@ -125,26 +187,6 @@ namespace GEUndub
             }
 
             return contains;
-        }
-
-        static readonly int[] Empty = new int[0];
-
-        public static int[] Locate(this byte[] self, byte[] candidate)
-        {
-            if (IsEmptyLocate(self, candidate))
-                return Empty;
-
-            var list = new List<int>();
-
-            for (int i = 0; i < self.Length; i++)
-            {
-                if (!IsMatch(self, i, candidate))
-                    continue;
-
-                list.Add(i);
-            }
-
-            return list.Count == 0 ? Empty : list.ToArray();
         }
 
         static bool IsMatch(byte[] array, int position, byte[] candidate)
