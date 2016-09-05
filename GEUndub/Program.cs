@@ -64,8 +64,8 @@ namespace GEUndub
                     reader_qpck.BaseStream.Seek(-4, SeekOrigin.Current);
                     byte[] buffer_qpck_file = reader_qpck.ReadBytes(size_qpck_file);
 
-                    // Print progress every 1000 files
-                    if ((i+1) % 1000 == 0) { Console.WriteLine("Processed {0} / {1} files.", (i+1), count_qpck); }
+                    // Print progress every 5000 files
+                    if ((i+1) % 5000 == 0) { Console.WriteLine("Processed {0} / {1} files.", (i+1), count_qpck); }
                     
 
                     #region pres-processing
@@ -99,7 +99,7 @@ namespace GEUndub
                                     // DELETE
                                     if (count_set_files > 1)
                                     {
-                                        debuglog.WriteLine("Count_set_files > 1");
+                                        debuglog.WriteLine("ERR_SETFILECOUNT_LARGERONE,qpck {0},set {1}", (i + 1), (j + 1));
                                         break;
                                     }
 
@@ -131,7 +131,7 @@ namespace GEUndub
                                         string string_ext = "";
 
                                         if (count_nameparts < 2) {
-                                            debuglog.WriteLine("ERR_NAMEPARTS_LESSTWO,qpck {0},set {1}, file {2}", (i+1), (j+1), (k+1));
+                                            debuglog.WriteLine("ERR_NAMEPARTS_LESSTWO,qpck {0},set {1},file {2}", (i + 1), (j + 1), (k + 1));
                                             break; }
                                         else
                                         { 
@@ -145,10 +145,10 @@ namespace GEUndub
                                         if (string_ext != "is14") { break; }
 
                                         string name_new_file = res + "\\" + string_name + ".wav";
-                                        if (!File.Exists(name_new_file)) { debuglog.WriteLine("ERR_FILE_MISSING,qpck {0},set {1}, file {2}, {3}.{4}", (i + 1), (j + 1), (k + 1), string_name, string_ext); }
+                                        if (!File.Exists(name_new_file)) { debuglog.WriteLine("ERR_FILE_MISSING,qpck {0},set {1},file {2},{3}.{4}", (i + 1), (j + 1), (k + 1), string_name, string_ext); }
                                         else
                                         {
-                                            debuglog.WriteLine("MSG_FILE_REPLACED,qpck {0},set {1}, file {2}, {3}.wav", (i + 1), (j + 1), (k + 1), string_name);
+                                            debuglog.WriteLine("MSG_FILE_REPLACED,qpck {0},set {1},file {2},{3}.wav", (i + 1), (j + 1), (k + 1), string_name);
 
                                             byte[] buffer_new_file = File.ReadAllBytes(name_new_file);
                                             int size_new_file = buffer_new_file.Length;
@@ -229,9 +229,16 @@ namespace GEUndub
                 }
                 writer_qpck.Close();
             }
+
+            // Rename files
+            Console.WriteLine("=========================");
+            Console.WriteLine("Renaming files.");
+            File.Move(bin_qpck, AppDomain.CurrentDomain.BaseDirectory + "\\bin.qpck.old");
+            File.Move(new_qpck, bin_qpck);
+
             // App Exit
             Console.WriteLine("=========================");
-            Console.WriteLine("INFO: Finished patching. Press Enter to exit.");
+            Console.WriteLine("Finished patching. Press Enter to exit.");
             Console.ReadLine();
         }
 
