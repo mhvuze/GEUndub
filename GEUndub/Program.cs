@@ -48,6 +48,8 @@ namespace GEUndub
                 BinaryWriter writer_qpck = new BinaryWriter(File.OpenWrite(new_qpck));
                 writer_qpck.Write(buffer_qpck_index);
 
+                StreamWriter debuglog = new StreamWriter(debug_log, true);
+
                 for (int i = 0; i < count_qpck; i++)
                 {
                     // Get file info
@@ -73,9 +75,7 @@ namespace GEUndub
                         // Check if .pres contains .is14 audio files
                         if (buffer_qpck_file.ArrayContains(pattern_is14) == true)
                         {
-                            // Console.WriteLine("File @ {0} matches filter. Processing now.", offset_qpck_file.ToString("X16"));
                             Stream stream_og_pres = new MemoryStream(buffer_qpck_file);
-
                             using (BinaryReader reader_pres = new BinaryReader(stream_og_pres))
                             {
                                 // Get general pres info
@@ -94,12 +94,18 @@ namespace GEUndub
                                     reader_pres.BaseStream.Seek(16, SeekOrigin.Current);
                                     int offset_set_info = reader_pres.ReadInt32();
                                     int count_set_files = reader_pres.ReadInt32();
+                                    reader_pres.BaseStream.Seek(offset_set_info, SeekOrigin.Begin);
+
+                                    // DELETE
+                                    if (count_set_files > 1)
+                                    {
+                                        debuglog.WriteLine("Count_set_files > 1");
+                                        break;
+                                    }
 
                                     for (int k = 0; k < count_set_files; k++)
                                     {
                                         // Get individual file info
-                                        reader_pres.BaseStream.Seek(offset_set_info, SeekOrigin.Begin);
-
                                         int offset_file = reader_pres.ReadInt32();
                                         int offset_shifted = offset_file & ((1 << (32 - 4)) - 1);
 
@@ -125,7 +131,7 @@ namespace GEUndub
                                         string string_ext = "";
 
                                         if (count_nameparts < 2) {
-                                            //using (StreamWriter debuglog = new StreamWriter(debug_log, true)) { debuglog.WriteLine("ERR_NAMEPARTS_LESSTWO,qpck {0},set {1}, file {2}", (i+1), (count_pres_set+1), (k+1)); };
+                                            debuglog.WriteLine("ERR_NAMEPARTS_LESSTWO,qpck {0},set {1}, file {2}", (i+1), (j+1), (k+1));
                                             break; }
                                         else
                                         { 
@@ -139,14 +145,10 @@ namespace GEUndub
                                         if (string_ext != "is14") { break; }
 
                                         string name_new_file = res + "\\" + string_name + ".wav";
-                                        if (!File.Exists(name_new_file)) { Console.WriteLine("INFO: No file found to replace {0}.{1}.", string_name, string_ext); }
+                                        if (!File.Exists(name_new_file)) { debuglog.WriteLine("ERR_FILE_MISSING,qpck {0},set {1}, file {2}, {3}.{4}", (i + 1), (j + 1), (k + 1), string_name, string_ext); }
                                         else
                                         {
-                                            // DEBUG
-                                            using (StreamWriter debuglog = new StreamWriter(debug_log, true))
-                                            {
-                                                debuglog.WriteLine(string_name + ".wav");
-                                            }
+                                            debuglog.WriteLine("MSG_FILE_REPLACED,qpck {0},set {1}, file {2}, {3}.wav", (i + 1), (j + 1), (k + 1), string_name);
 
                                             byte[] buffer_new_file = File.ReadAllBytes(name_new_file);
                                             int size_new_file = buffer_new_file.Length;
@@ -162,10 +164,17 @@ namespace GEUndub
                                             Array.Copy(buffer_new_file, 0, buffer_qpck_file, offset_shifted, size_new_file);
                                             Array.Copy(array_size_new_file, 0, buffer_qpck_file, csize_file_pos, 4);
                                             Array.Copy(array_size_new_file, 0, buffer_qpck_file, usize_file_pos, 4);
+
+                                            // Update offset if required
+                                            if (count_set_files > 1)
+                                            {
+                                                // TODO
+                                            }
+
                                             update_required = true;
                                         }
                                         // Prepare for next loop
-                                        reader_pres.BaseStream.Seek(reader_index_file + (k * 0x20), SeekOrigin.Begin);
+                                        reader_pres.BaseStream.Seek(reader_index_file, SeekOrigin.Begin);
                                     }
                                     // Prepare for next loop
                                     if (count_pres_set > 1) { reader_pres.BaseStream.Seek(reader_index_root + ((j + 1) * 8), SeekOrigin.Begin); }
