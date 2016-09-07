@@ -100,12 +100,10 @@ namespace GEUndub
 
                                     for (int k = 0; k < count_set_files; k++)
                                     {
-                                        int offset_file_new = 0;
-                                        long reader_index_offset = reader_pres.BaseStream.Position;
-
                                         // Get individual file info
                                         int offset_file = reader_pres.ReadInt32();
                                         int offset_shifted = offset_file & ((1 << (32 - 4)) - 1);
+                                        int offset_file_new = offset_shifted;
 
                                         long csize_file_pos = reader_pres.BaseStream.Position;
                                         int csize_file = reader_pres.ReadInt32();     
@@ -161,12 +159,13 @@ namespace GEUndub
                                             Array.Copy(array_size_new_file, 0, buffer_qpck_file, csize_file_pos, 4);
                                             Array.Copy(array_size_new_file, 0, buffer_qpck_file, usize_file_pos, 4);
 
-                                            // Update offset
-                                            int offset_file_new_calc = offset_shifted + offset_file_new;
-                                            // This is dirty
-                                            byte[] temp = BitConverter.GetBytes(offset_file_new_calc);
-                                            byte[] array_offset_new_file = temp.Skip(1).ToArray();
-                                            Array.Copy(array_offset_new_file, 0, buffer_qpck_file, reader_index_offset, 3);
+                                            if ( k > 0)
+                                            {
+                                                // This is dirty
+                                                byte[] temp = BitConverter.GetBytes(offset_file_new);
+                                                byte[] array_offset_new_file = temp.Skip(1).ToArray();
+                                                Array.Copy(array_offset_new_file, 0, buffer_qpck_file, offset_set_info, 3);
+                                            }
 
                                             update_required = true;
                                             debuglog.WriteLine("MSG_FILE_REPLACED,qpck {0},set {1},file {2},{3}.wav", (i + 1), (j + 1), (k + 1), string_name);
