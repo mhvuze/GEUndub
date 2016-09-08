@@ -78,7 +78,7 @@ namespace GEUndub
                             Stream stream_og_pres = new MemoryStream(buffer_qpck_file);
                             using (BinaryReader reader_pres = new BinaryReader(stream_og_pres))
                             {
-                                int size_new_pres = size_qpck_file;
+                                int size_new_pres = size_qpck_file;                                
 
                                 // Get general pres info
                                 reader_pres.BaseStream.Seek(0x10, SeekOrigin.Begin);
@@ -98,16 +98,16 @@ namespace GEUndub
                                     int count_set_files = reader_pres.ReadInt32();
                                     reader_pres.BaseStream.Seek(offset_set_info, SeekOrigin.Begin);
 
+                                    int offset_next_file = 0;
                                     for (int k = 0; k < count_set_files; k++)
                                     {
                                         // Get individual file info
                                         int offset_file = reader_pres.ReadInt32();
                                         int offset_shifted = offset_file & ((1 << (32 - 4)) - 1);
-                                        int offset_file_new = offset_shifted;
 
                                         long csize_file_pos = reader_pres.BaseStream.Position;
-                                        int csize_file = reader_pres.ReadInt32();     
-                                                                           
+                                        int csize_file = reader_pres.ReadInt32();
+
                                         int offset_name = reader_pres.ReadInt32();
                                         int count_nameparts = reader_pres.ReadInt32();
                                         reader_pres.BaseStream.Seek(12, SeekOrigin.Current);
@@ -150,22 +150,29 @@ namespace GEUndub
                                             byte[] array_size_new_file = BitConverter.GetBytes(size_new_file);
 
                                             // Calculate size of updated pres                                            
-                                            if (csize_file > size_new_file) { size_new_pres -= csize_file - size_new_file; offset_file_new -= csize_file - size_new_file; }
-                                            if (csize_file < size_new_file) { size_new_pres += size_new_file - csize_file; offset_file_new += size_new_file - csize_file; }
-
-                                            // Replace file and update size in pres
+                                            if (csize_file > size_new_file) { size_new_pres -= csize_file - size_new_file; }
+                                            if (csize_file < size_new_file) { size_new_pres += size_new_file - csize_file; }
                                             Array.Resize(ref buffer_qpck_file, size_new_pres);
-                                            Array.Copy(buffer_new_file, 0, buffer_qpck_file, offset_shifted, size_new_file);
-                                            Array.Copy(array_size_new_file, 0, buffer_qpck_file, csize_file_pos, 4);
-                                            Array.Copy(array_size_new_file, 0, buffer_qpck_file, usize_file_pos, 4);
 
-                                            if ( k > 0)
+                                            if (k > 0)
                                             {
                                                 // This is dirty
-                                                byte[] temp = BitConverter.GetBytes(offset_file_new);
-                                                byte[] array_offset_new_file = temp.Skip(1).ToArray();
-                                                Array.Copy(array_offset_new_file, 0, buffer_qpck_file, offset_set_info, 3);
+                                                byte[] temp = BitConverter.GetBytes(offset_next_file);
+                                                Array.Copy(temp, 0, buffer_qpck_file, offset_set_info + (k * 0x20), 3);
+                                                //Console.WriteLine("File: {0}, Offset: {1}", k + 1, offset_file_new);
+
+                                                Array.Copy(buffer_new_file, 0, buffer_qpck_file, offset_next_file, size_new_file);
+                                                offset_next_file += size_new_file;
                                             }
+                                            else
+                                            {
+                                                Array.Copy(buffer_new_file, 0, buffer_qpck_file, offset_shifted, size_new_file);
+                                                offset_next_file = offset_shifted + size_new_file;
+                                            }
+
+                                            // Replace file and update size in pres
+                                            Array.Copy(array_size_new_file, 0, buffer_qpck_file, csize_file_pos, 4);
+                                            Array.Copy(array_size_new_file, 0, buffer_qpck_file, usize_file_pos, 4);
 
                                             update_required = true;
                                             debuglog.WriteLine("MSG_FILE_REPLACED,qpck {0},set {1},file {2},{3}.wav", (i + 1), (j + 1), (k + 1), string_name);
