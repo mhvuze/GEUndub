@@ -65,124 +65,144 @@ namespace GEUndub
                     byte[] buffer_qpck_file = reader_qpck.ReadBytes(size_qpck_file);
 
                     // Print progress every 5000 files
-                    if ((i+1) % 5000 == 0) { Console.WriteLine("Processed {0} / {1} files.", (i+1), count_qpck); }
-                    
+                    if ((i+1) % 5000 == 0) { Console.WriteLine("Processed {0} / {1} files.", (i+1), count_qpck); }                    
 
                     #region pres-processing
                     // Process .pres
                     if (file_magic == magic_pres)
                     {
-                        // Check if .pres contains .is14 audio files
-                        if (buffer_qpck_file.ArrayContains(pattern_is14) == true)
+                        // Blacklist GER
+                        if (i + 1 == 7592 || 
+                            i + 1 == 49548 ||
+                            i + 1 == 49550
+                            )
                         {
-                            Stream stream_og_pres = new MemoryStream(buffer_qpck_file);
-                            using (BinaryReader reader_pres = new BinaryReader(stream_og_pres))
+                            Console.WriteLine("File {0} is blacklisted. Skipping. Don't worry about this message.", (i + 1));
+                        }
+                        else
+                        {
+                            // Check if .pres contains .is14 audio files
+                            if (buffer_qpck_file.ArrayContains(pattern_is14) == true)
                             {
-                                int size_new_pres = size_qpck_file;                                
-
-                                // Get general pres info
-                                reader_pres.BaseStream.Seek(0x10, SeekOrigin.Begin);
-                                int offset_pres_data = reader_pres.ReadInt32();
-                                reader_pres.BaseStream.Seek(8, SeekOrigin.Current);
-                                int count_pres_set = reader_pres.ReadInt32();
-                                long reader_index_root = reader_pres.BaseStream.Position;
-
-                                for (int j = 0; j < count_pres_set; j++)
+                                Stream stream_og_pres = new MemoryStream(buffer_qpck_file);
+                                using (BinaryReader reader_pres = new BinaryReader(stream_og_pres))
                                 {
-                                    // Handle differences for pres with count > 1
-                                    if (count_pres_set > 1) { int offset_pres_set_entry = reader_pres.ReadInt32(); reader_pres.BaseStream.Seek(offset_pres_set_entry, SeekOrigin.Begin); }
+                                    int size_new_pres = size_qpck_file;
 
-                                    // Read set info
-                                    reader_pres.BaseStream.Seek(16, SeekOrigin.Current);
-                                    int offset_set_info = reader_pres.ReadInt32();
-                                    int count_set_files = reader_pres.ReadInt32();
-                                    reader_pres.BaseStream.Seek(offset_set_info, SeekOrigin.Begin);
+                                    // Get general pres info
+                                    reader_pres.BaseStream.Seek(0x10, SeekOrigin.Begin);
+                                    int offset_pres_data = reader_pres.ReadInt32();
+                                    reader_pres.BaseStream.Seek(8, SeekOrigin.Current);
+                                    int count_pres_set = reader_pres.ReadInt32();
+                                    long reader_index_root = reader_pres.BaseStream.Position;
 
-                                    int offset_next_file = 0;
-                                    for (int k = 0; k < count_set_files; k++)
+                                    for (int j = 0; j < count_pres_set; j++)
                                     {
-                                        // Get individual file info
-                                        int offset_file = reader_pres.ReadInt32();
-                                        int offset_shifted = offset_file & ((1 << (32 - 4)) - 1);
+                                        // Handle differences for pres with count > 1
+                                        if (count_pres_set > 1) { int offset_pres_set_entry = reader_pres.ReadInt32(); reader_pres.BaseStream.Seek(offset_pres_set_entry, SeekOrigin.Begin); }
 
-                                        long csize_file_pos = reader_pres.BaseStream.Position;
-                                        int csize_file = reader_pres.ReadInt32();
+                                        // Read set info
+                                        reader_pres.BaseStream.Seek(16, SeekOrigin.Current);
+                                        int offset_set_info = reader_pres.ReadInt32();
+                                        int count_set_files = reader_pres.ReadInt32();
+                                        reader_pres.BaseStream.Seek(offset_set_info, SeekOrigin.Begin);
 
-                                        int offset_name = reader_pres.ReadInt32();
-                                        int count_nameparts = reader_pres.ReadInt32();
-                                        reader_pres.BaseStream.Seek(12, SeekOrigin.Current);
-
-                                        long usize_file_pos = reader_pres.BaseStream.Position;
-                                        int usize_file = reader_pres.ReadInt32();
-
-                                        long reader_index_file = reader_pres.BaseStream.Position;
-
-                                        // Get individual file name info
-                                        reader_pres.BaseStream.Seek(offset_name, SeekOrigin.Begin);
-                                        int offset_part_name = reader_pres.ReadInt32();
-                                        int offset_part_Ext = reader_pres.ReadInt32();
-
-                                        // Get individual file name strings
-                                        string string_name = "";
-                                        string string_ext = "";
-
-                                        if (count_nameparts < 2) {
-                                            debuglog.WriteLine("ERR_NAMEPARTS_LESSTWO,qpck {0},set {1},file {2}", (i + 1), (j + 1), (k + 1));
-                                            break; }
-                                        else
-                                        { 
-                                            reader_pres.BaseStream.Seek(offset_part_name, SeekOrigin.Begin);
-                                            string_name = readNullterminated(reader_pres);
-                                            reader_pres.BaseStream.Seek(offset_part_Ext, SeekOrigin.Begin);
-                                            string_ext = readNullterminated(reader_pres);
-                                        }
-
-                                        // Replace file
-                                        if (string_ext != "is14") { break; }
-                                        //if (count_set_files > 1) { Console.WriteLine("Ding ding ding {0}", i + 1); }
-
-                                        string name_new_file = res + "\\" + string_name + ".wav";
-                                        if (!File.Exists(name_new_file)) { debuglog.WriteLine("ERR_FILE_MISSING,qpck {0},set {1},file {2},{3}.{4}", (i + 1), (j + 1), (k + 1), string_name, string_ext); }
-                                        else
+                                        int offset_next_file = 0;
+                                        for (int k = 0; k < count_set_files; k++)
                                         {
-                                            byte[] buffer_new_file = File.ReadAllBytes(name_new_file);
-                                            int size_new_file = buffer_new_file.Length;
-                                            byte[] array_size_new_file = BitConverter.GetBytes(size_new_file);
+                                            // Get individual file info
+                                            int offset_file = reader_pres.ReadInt32();
+                                            int offset_shifted = offset_file & ((1 << (32 - 4)) - 1);
 
-                                            // Calculate size of updated pres                                            
-                                            if (csize_file > size_new_file) { size_new_pres -= csize_file - size_new_file; }
-                                            if (csize_file < size_new_file) { size_new_pres += size_new_file - csize_file; }
-                                            Array.Resize(ref buffer_qpck_file, size_new_pres);
+                                            long csize_file_pos = reader_pres.BaseStream.Position;
+                                            int csize_file = reader_pres.ReadInt32();
 
-                                            if (k > 0)
+                                            int offset_name = reader_pres.ReadInt32();
+                                            int count_nameparts = reader_pres.ReadInt32();
+                                            reader_pres.BaseStream.Seek(12, SeekOrigin.Current);
+
+                                            long usize_file_pos = reader_pres.BaseStream.Position;
+                                            int usize_file = reader_pres.ReadInt32();
+
+                                            long reader_index_file = reader_pres.BaseStream.Position;
+
+                                            // Get individual file name info
+                                            reader_pres.BaseStream.Seek(offset_name, SeekOrigin.Begin);
+                                            int offset_part_name = reader_pres.ReadInt32();
+                                            int offset_part_Ext = reader_pres.ReadInt32();
+
+                                            // Get individual file name strings
+                                            string string_name = "";
+                                            string string_ext = "";
+
+                                            if (count_nameparts < 2)
                                             {
-                                                // This is dirty
-                                                byte[] temp = BitConverter.GetBytes(offset_next_file);
-                                                Array.Copy(temp, 0, buffer_qpck_file, offset_set_info + (k * 0x20), 3);
-                                                //Console.WriteLine("File: {0}, Offset: {1}", k + 1, offset_file_new);
-
-                                                Array.Copy(buffer_new_file, 0, buffer_qpck_file, offset_next_file, size_new_file);
-                                                offset_next_file += size_new_file;
+                                                debuglog.WriteLine("ERR_NAMEPARTS_LESSTWO,qpck {0},set {1},file {2}", (i + 1), (j + 1), (k + 1));
+                                                break;
                                             }
                                             else
                                             {
-                                                Array.Copy(buffer_new_file, 0, buffer_qpck_file, offset_shifted, size_new_file);
-                                                offset_next_file = offset_shifted + size_new_file;
+                                                reader_pres.BaseStream.Seek(offset_part_name, SeekOrigin.Begin);
+                                                string_name = readNullterminated(reader_pres);
+                                                reader_pres.BaseStream.Seek(offset_part_Ext, SeekOrigin.Begin);
+                                                string_ext = readNullterminated(reader_pres);
                                             }
 
-                                            // Replace file and update size in pres
-                                            Array.Copy(array_size_new_file, 0, buffer_qpck_file, csize_file_pos, 4);
-                                            Array.Copy(array_size_new_file, 0, buffer_qpck_file, usize_file_pos, 4);
+                                            // Replace file
+                                            if (string_ext != "is14") { break; }
+                                            //if (count_set_files > 1) { Console.WriteLine("Ding ding ding {0}", i + 1); }
 
-                                            update_required = true;
-                                            debuglog.WriteLine("MSG_FILE_REPLACED,qpck {0},set {1},file {2},{3}.wav", (i + 1), (j + 1), (k + 1), string_name);
-                                            if (offset_next_file > 16777215) { debuglog.WriteLine("ERR_DEBUG_OFFSETEXCEED,{0}", offset_next_file); }
+                                            string name_new_file = res + "\\" + string_name + ".wav";
+                                            if (!File.Exists(name_new_file)) { debuglog.WriteLine("ERR_FILE_MISSING,qpck {0},set {1},file {2},{3}.{4}", (i + 1), (j + 1), (k + 1), string_name, string_ext); }
+                                            else
+                                            {
+                                                byte[] buffer_new_file = File.ReadAllBytes(name_new_file);
+                                                int size_new_file = buffer_new_file.Length;
+                                                byte[] array_size_new_file = BitConverter.GetBytes(size_new_file);
+
+                                                // Update size in pres
+                                                Array.Copy(array_size_new_file, 0, buffer_qpck_file, csize_file_pos, 4);
+                                                Array.Copy(array_size_new_file, 0, buffer_qpck_file, usize_file_pos, 4);
+
+                                                // Calculate size of updated pres                                            
+                                                if (csize_file > size_new_file) { size_new_pres -= csize_file - size_new_file; }
+                                                if (csize_file < size_new_file) { size_new_pres += size_new_file - csize_file; }
+                                                Array.Resize(ref buffer_qpck_file, size_new_pres);
+
+                                                if (k > 0)
+                                                {
+                                                    // This is dirty
+                                                    byte[] temp = BitConverter.GetBytes(offset_next_file);
+                                                    Array.Copy(temp, 0, buffer_qpck_file, offset_set_info + (k * 0x20), 3);
+                                                    //Console.WriteLine("File: {0}, Offset: {1}", k + 1, offset_file_new);
+
+                                                    try
+                                                    {
+                                                        Array.Copy(buffer_new_file, 0, buffer_qpck_file, offset_next_file, size_new_file);
+                                                        offset_next_file += size_new_file;
+                                                    }
+                                                    catch
+                                                    {
+                                                        Console.WriteLine("qpck: {3}, file: {0}, offset_next_file: {1}, size_new_file: {2}", string_name, offset_next_file, size_new_file, (i + 1));
+                                                        File.WriteAllBytes("debug.bin", buffer_qpck_file);
+                                                        Console.ReadLine(); return;
+                                                    }
+                                                }
+                                                else
+                                                {
+                                                    Array.Copy(buffer_new_file, 0, buffer_qpck_file, offset_shifted, size_new_file);
+                                                    offset_next_file = offset_shifted + size_new_file;
+                                                }
+
+                                                update_required = true;
+                                                debuglog.WriteLine("MSG_FILE_REPLACED,qpck {0},set {1},file {2},{3}.wav", (i + 1), (j + 1), (k + 1), string_name);
+                                            }
+                                            // Prepare for next loop
+                                            reader_pres.BaseStream.Seek(reader_index_file, SeekOrigin.Begin);
                                         }
                                         // Prepare for next loop
-                                        reader_pres.BaseStream.Seek(reader_index_file, SeekOrigin.Begin);
+                                        if (count_pres_set > 1) { reader_pres.BaseStream.Seek(reader_index_root + ((j + 1) * 8), SeekOrigin.Begin); }
                                     }
-                                    // Prepare for next loop
-                                    if (count_pres_set > 1) { reader_pres.BaseStream.Seek(reader_index_root + ((j + 1) * 8), SeekOrigin.Begin); }
                                 }
                             }
                         }
