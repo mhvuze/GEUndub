@@ -99,10 +99,12 @@ namespace GEUndub
 
                                     // Remain during set processing
                                     var set_file_dictionary = new List<SetFile>();
-                                    int offset_next_file = 0;
+                                    int offset_next_file = 0;                                    
 
                                     for (int k = 0; k < count_set_files; k++)
                                     {
+                                        IEnumerable<SetFile> foundDupe = null;
+
                                         // Get individual file info
                                         int offset_file = reader_pres.ReadInt32();
                                         int offset_shifted = offset_file & ((1 << (32 - 4)) - 1);
@@ -143,17 +145,24 @@ namespace GEUndub
 
                                         // Replace file
                                         if (string_ext != "is14") { break; }
-                                        //if (count_set_files > 1) { Console.WriteLine("Ding ding ding {0}", i + 1); }
 
                                         string name_new_file = res + "\\" + string_name + ".wav";
                                         if (!File.Exists(name_new_file)) { debuglog.WriteLine("ERR_FILE_MISSING,qpck {0},set {1},file {2},{3}.{4}", (i + 1), (j + 1), (k + 1), string_name, string_ext); }
                                         else
                                         {
-                                            // Check if this is one of the stupid dupe files
-                                            ILookup<string, SetFile> byName = set_file_dictionary.ToLookup(o => o.FileName);
-                                            IEnumerable<SetFile> foundDupe = byName[string_name + "." + string_ext];
+                                            bool patchdupe = false;
+                                            if (count_set_files > 1)
+                                            {
+                                                // Check if this is one of the stupid dupe files
+                                                ILookup<string, SetFile> byName = set_file_dictionary.ToLookup(o => o.FileName);
+                                                foundDupe = byName[string_name + "." + string_ext];
 
-                                            if (foundDupe.Count() == 1)
+                                                if (foundDupe.Count() == 1)
+                                                {
+                                                    patchdupe = true;
+                                                }
+                                            }
+                                            if (patchdupe == true)
                                             {
                                                 var element = foundDupe.First();
                                                 byte[] array_size_new_file = BitConverter.GetBytes(element.Size);
@@ -163,6 +172,8 @@ namespace GEUndub
                                                 Array.Copy(array_size_new_file, 0, buffer_qpck_file, csize_file_pos, 4);
                                                 Array.Copy(array_size_new_file, 0, buffer_qpck_file, usize_file_pos, 4);
                                                 Array.Copy(array_offset_new_file, 0, buffer_qpck_file, offset_set_info + (k * 0x20), 3);
+
+                                                patchdupe = false;
                                             }
                                             else
                                             {
