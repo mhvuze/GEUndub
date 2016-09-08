@@ -139,7 +139,7 @@ namespace GEUndub
 
                                         // Replace file
                                         if (string_ext != "is14") { break; }
-                                        if (count_set_files > 1) { Console.WriteLine("Ding ding ding {0}", i + 1); }
+                                        //if (count_set_files > 1) { Console.WriteLine("Ding ding ding {0}", i + 1); }
 
                                         string name_new_file = res + "\\" + string_name + ".wav";
                                         if (!File.Exists(name_new_file)) { debuglog.WriteLine("ERR_FILE_MISSING,qpck {0},set {1},file {2},{3}.{4}", (i + 1), (j + 1), (k + 1), string_name, string_ext); }
@@ -176,6 +176,7 @@ namespace GEUndub
 
                                             update_required = true;
                                             debuglog.WriteLine("MSG_FILE_REPLACED,qpck {0},set {1},file {2},{3}.wav", (i + 1), (j + 1), (k + 1), string_name);
+                                            if (offset_next_file > 16777215) { debuglog.WriteLine("ERR_DEBUG_OFFSETEXCEED,{0}", offset_next_file); }
                                         }
                                         // Prepare for next loop
                                         reader_pres.BaseStream.Seek(reader_index_file, SeekOrigin.Begin);
